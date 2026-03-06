@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+    <html>
+    <head>
+        <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.min.js"></script>
+        <style> body { margin: 0; background: #111; overflow: hidden; } </style>
+    </head>
+    <body>
+        <script>
+        const config = {
+            type: Phaser.AUTO,
+            width: 800, height: 600,
+            physics: { default: 'arcade', arcade: { gravity: { y: 1500 }, debug: false } },
+            scene: { preload: preload, create: create, update: update }
+        };
+    
+        const game = new Phaser.Game(config);
+        let player, cursors, platforms, hazards, checkpoint, portal;
+        let spawnPoint = { x: 50, y: 500 };
+        let currentAct = 1;
+        let changingLevel = false; // Prevents the Level Transition bug
+    
+        function preload() {}
+    
+        function create() {
+            platforms = this.physics.add.staticGroup();
+            hazards = this.physics.add.group();
+            
+            // Player Setup
+            player = this.add.rectangle(spawnPoint.x, spawnPoint.y, 20, 40, 0xffffff);
+            this.physics.add.existing(player);
+            player.body.setCollideWorldBounds(true);
+            
+            buildLevel(this, currentAct);
+    
+            // Movement keys
+            cursors = this.input.keyboard.createCursorKeys();
+        }
+    
+        function buildLevel(scene, act) {
+            changingLevel = false;
+            platforms.clear(true, true);
+            hazards.clear(true, true);
+            if(checkpoint) checkpoint.destroy();
+            if(portal) portal.destroy();
+    
+            if (act === 1) {
+                createRect(scene, 400, 580, 800, 40, 0x333333, platforms);
+                createRect(scene, 300, 450, 200, 20, 0x333333, platforms);
+                
+                checkpoint = scene.add.rectangle(300, 410, 10, 60, 0xffffff);
+                scene.physics.add.existing(checkpoint, true);
+                
+                portal = scene.add.rectangle(750, 530, 40, 60, 0x9b59b6);
+                scene.physics.add.existing(portal, true);
+            } else if (act === 2) {
+                createRect(scene, 100, 580, 200, 40, 0x333333, platforms);
+                createRect(scene, 400, 400, 20, 400, 0x555555, platforms);
+                createRect(scene, 700, 250, 200, 20, 0x333333, platforms);
+    
+                let gear = scene.add.rectangle(450, 550, 50, 50, 0xff0000);
+                scene.physics.add.existing(gear);
+                gear.body.setAllowGravity(false).setImmovable(true);
+                hazards.add(gear);
+                scene.tweens.add({ targets: gear, x: 650, duration: 1200, yoyo: true, repeat: -1, onUpdate: () => gear.rotation += 0.2 });
+    
+                portal = scene.add.rectangle(750, 200, 40, 60, 0x9b59b6);
+                scene.physics.add.existing(portal, true);
+            }
+    
+            // Re-add collisions after building
+            scene.physics.add.collider(player, platforms);
+            scene.physics.add.overlap(player, hazards, respawn, null, scene);
+            scene.physics.add.overlap(player, checkpoint, () => {
+                checkpoint.setFillStyle(0x00aaff);
+                spawnPoint = { x: checkpoint.x, y: checkpoint.y };
+            });
+            scene.physics.add.overlap(player, portal, () => {
+                if(!changingLevel) nextLevel(scene);
+            });
+        }
+    
+        function respawn() {
+            player.x = spawnPoint.x;
+            player.y = spawnPoint.y;
+            player.body.setVelocity(0);
+        }
+    
+        function nextLevel(scene) {
+            changingLevel = true;
+            currentAct++;
+            spawnPoint = { x: 50, y: 500 };
+            respawn();
+            if(currentAct <= 2) buildLevel(scene, currentAct);
+            else alert("Victory! You finished all Acts.");
+        }
+    
+        function update() {
+            const onGround = player.body.touching.down;
+            const onWall = player.body.touching.left || player.body.touching.right;
+    
+            if (cursors.down.isDown && onGround) {
+                player.setDisplaySize(20, 20);
+                player.body.setVelocityX(player.body.velocity.x * 1.01);
+            } else {
+                player.setDisplaySize(20, 40);
+                if (cursors.left.isDown) player.body.setVelocityX(-350);
+                else if (cursors.right.isDown) player.body.setVelocityX(350);
+                else player.body.setVelocityX(0);
+            }
+    
+            if (Phaser.Input.Keyboard.JustDown(cursors.up)) {
+                if (onGround) player.body.setVelocityY(-650);
+                else if (onWall) {
+                    player.body.setVelocityY(-600);
+                    player.body.setVelocityX(player.body.touching.left ? 400 : -400);
+                }
+            }
+        }
+    
+        function createRect(scene, x, y, w, h, color, group) {
+            let rect = scene.add.rectangle(x, y, w, h, color);
+            group.add(rect);
+        }
+        </script>
+    </body>
+    </html>
+    
